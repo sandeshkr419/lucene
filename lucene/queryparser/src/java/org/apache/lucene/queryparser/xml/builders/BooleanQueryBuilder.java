@@ -16,6 +16,7 @@
  */
 package org.apache.lucene.queryparser.xml.builders;
 
+import java.util.Locale;
 import org.apache.lucene.queryparser.xml.DOMUtils;
 import org.apache.lucene.queryparser.xml.ParserException;
 import org.apache.lucene.queryparser.xml.QueryBuilder;
@@ -36,18 +37,20 @@ public class BooleanQueryBuilder implements QueryBuilder {
     this.factory = factory;
   }
 
-  /* (non-Javadoc)
-   * @see org.apache.lucene.xmlparser.QueryObjectBuilder#process(org.w3c.dom.Element)
+  /**
+   * Constructs a {@link BooleanQuery} from the given XML element.
+   *
+   * @param e The XML element representing the boolean query.
+   * @return A {@link BooleanQuery} constructed from the element.
+   * @throws ParserException If there is an issue parsing the XML.
    */
-
   @Override
   public Query getQuery(Element e) throws ParserException {
-    BooleanQuery.Builder bq = new BooleanQuery.Builder();
+    final BooleanQuery.Builder bq = new BooleanQuery.Builder();
     bq.setMinimumNumberShouldMatch(DOMUtils.getAttribute(e, "minimumNumberShouldMatch", 0));
 
-    NodeList nl = e.getChildNodes();
-    final int nlLen = nl.getLength();
-    for (int i = 0; i < nlLen; i++) {
+    final NodeList nl = e.getChildNodes();
+    for (int i = 0; i < nl.getLength(); i++) {
       Node node = nl.item(i);
       if (node.getNodeName().equals("Clause")) {
         Element clauseElem = (Element) node;
@@ -68,16 +71,14 @@ public class BooleanQueryBuilder implements QueryBuilder {
   }
 
   static BooleanClause.Occur getOccursValue(Element clauseElem) throws ParserException {
-    String occs = clauseElem.getAttribute("occurs");
-    if (occs == null || "should".equalsIgnoreCase(occs)) {
-      return BooleanClause.Occur.SHOULD;
-    } else if ("must".equalsIgnoreCase(occs)) {
-      return BooleanClause.Occur.MUST;
-    } else if ("mustNot".equalsIgnoreCase(occs)) {
-      return BooleanClause.Occur.MUST_NOT;
-    } else if ("filter".equals(occs)) {
-      return BooleanClause.Occur.FILTER;
-    }
-    throw new ParserException("Invalid value for \"occurs\" attribute of clause:" + occs);
+    String occs = clauseElem.getAttribute("occurs").toLowerCase(Locale.ROOT);
+    return switch (occs) {
+      case "should" -> BooleanClause.Occur.SHOULD;
+      case "must" -> BooleanClause.Occur.MUST;
+      case "must_not" -> BooleanClause.Occur.MUST_NOT;
+      case "filter" -> BooleanClause.Occur.FILTER;
+      default ->
+          throw new ParserException("Invalid value for \"occurs\" attribute of clause:" + occs);
+    };
   }
 }
