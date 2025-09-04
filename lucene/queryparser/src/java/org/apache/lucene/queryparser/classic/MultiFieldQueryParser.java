@@ -20,6 +20,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import org.apache.lucene.analysis.Analyzer;
+import org.apache.lucene.index.Term;
 import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.BoostQuery;
@@ -83,36 +84,32 @@ public class MultiFieldQueryParser extends QueryParser {
   protected Query getFieldQuery(String field, String queryText, int slop) throws ParseException {
     if (field == null) {
       List<Query> clauses = new ArrayList<>();
-      for (int i = 0; i < fields.length; i++) {
-        Query q = super.getFieldQuery(fields[i], queryText, true);
+      for (String s : fields) {
+        Query q = super.getFieldQuery(s, queryText, true);
         if (q != null) {
           // If the user passes a map of boosts
           if (boosts != null) {
             // Get the boost from the map and apply them
-            Float boost = boosts.get(fields[i]);
+            Float boost = boosts.get(s);
             if (boost != null) {
-              q = new BoostQuery(q, boost.floatValue());
+              q = new BoostQuery(q, boost);
             }
           }
           q = applySlop(q, slop);
           clauses.add(q);
         }
       }
-      if (clauses.size() == 0) // happens for stopwords
-      return null;
-      return getMultiFieldQuery(clauses);
+      return clauses.isEmpty() ? null : getMultiFieldQuery(clauses); // clauses empty for stopwords
     }
     Query q = super.getFieldQuery(field, queryText, true);
-    q = applySlop(q, slop);
-    return q;
+    return applySlop(q, slop);
   }
 
   private Query applySlop(Query q, int slop) {
-    if (q instanceof PhraseQuery) {
+    if (q instanceof PhraseQuery pq) {
       PhraseQuery.Builder builder = new PhraseQuery.Builder();
       builder.setSlop(slop);
-      PhraseQuery pq = (PhraseQuery) q;
-      org.apache.lucene.index.Term[] terms = pq.getTerms();
+      Term[] terms = pq.getTerms();
       int[] positions = pq.getPositions();
       for (int i = 0; i < terms.length; ++i) {
         builder.add(terms[i], positions[i]);
@@ -150,8 +147,8 @@ public class MultiFieldQueryParser extends QueryParser {
       for (int i = 0; i < fields.length; i++) {
         Query q = super.getFieldQuery(fields[i], queryText, quoted);
         if (q != null) {
-          if (q instanceof BooleanQuery) {
-            maxTerms = Math.max(maxTerms, ((BooleanQuery) q).clauses().size());
+          if (q instanceof BooleanQuery bq) {
+            maxTerms = Math.max(maxTerms, (bq.clauses().size()));
           } else {
             maxTerms = Math.max(1, maxTerms);
           }
@@ -163,8 +160,8 @@ public class MultiFieldQueryParser extends QueryParser {
         for (int i = 0; i < fields.length; i++) {
           if (fieldQueries[i] != null) {
             Query q = null;
-            if (fieldQueries[i] instanceof BooleanQuery) {
-              List<BooleanClause> nestedClauses = ((BooleanQuery) fieldQueries[i]).clauses();
+            if (fieldQueries[i] instanceof BooleanQuery bq) {
+              List<BooleanClause> nestedClauses = bq.clauses();
               if (termNum < nestedClauses.size()) {
                 q = nestedClauses.get(termNum).query();
               }
@@ -195,12 +192,9 @@ public class MultiFieldQueryParser extends QueryParser {
           clauses.addAll(termClauses);
         }
       }
-      if (clauses.size() == 0) // happens for stopwords
-      return null;
-      return getMultiFieldQuery(clauses);
+      return clauses.isEmpty() ? null : getMultiFieldQuery(clauses); // clauses empty for stopwords
     }
-    Query q = super.getFieldQuery(field, queryText, quoted);
-    return q;
+    return super.getFieldQuery(field, queryText, quoted);
   }
 
   @Override
@@ -208,8 +202,8 @@ public class MultiFieldQueryParser extends QueryParser {
       throws ParseException {
     if (field == null) {
       List<Query> clauses = new ArrayList<>();
-      for (int i = 0; i < fields.length; i++) {
-        clauses.add(getFuzzyQuery(fields[i], termStr, minSimilarity));
+      for (String s : fields) {
+        clauses.add(getFuzzyQuery(s, termStr, minSimilarity));
       }
       return getMultiFieldQuery(clauses);
     }
@@ -221,8 +215,8 @@ public class MultiFieldQueryParser extends QueryParser {
   protected Query getPrefixQuery(String field, String termStr) throws ParseException {
     if (field == null) {
       List<Query> clauses = new ArrayList<>();
-      for (int i = 0; i < fields.length; i++) {
-        clauses.add(getPrefixQuery(fields[i], termStr));
+      for (String s : fields) {
+        clauses.add(getPrefixQuery(s, termStr));
       }
       return getMultiFieldQuery(clauses);
     }
@@ -234,8 +228,8 @@ public class MultiFieldQueryParser extends QueryParser {
   protected Query getWildcardQuery(String field, String termStr) throws ParseException {
     if (field == null) {
       List<Query> clauses = new ArrayList<>();
-      for (int i = 0; i < fields.length; i++) {
-        clauses.add(getWildcardQuery(fields[i], termStr));
+      for (String s : fields) {
+        clauses.add(getWildcardQuery(s, termStr));
       }
       return getMultiFieldQuery(clauses);
     }
@@ -249,8 +243,8 @@ public class MultiFieldQueryParser extends QueryParser {
       throws ParseException {
     if (field == null) {
       List<Query> clauses = new ArrayList<>();
-      for (int i = 0; i < fields.length; i++) {
-        clauses.add(getRangeQuery(fields[i], part1, part2, startInclusive, endInclusive));
+      for (String s : fields) {
+        clauses.add(getRangeQuery(s, part1, part2, startInclusive, endInclusive));
       }
       return getMultiFieldQuery(clauses);
     }
@@ -262,8 +256,8 @@ public class MultiFieldQueryParser extends QueryParser {
   protected Query getRegexpQuery(String field, String termStr) throws ParseException {
     if (field == null) {
       List<Query> clauses = new ArrayList<>();
-      for (int i = 0; i < fields.length; i++) {
-        clauses.add(getRegexpQuery(fields[i], termStr));
+      for (String s : fields) {
+        clauses.add(getRegexpQuery(s, termStr));
       }
       return getMultiFieldQuery(clauses);
     }
@@ -273,7 +267,7 @@ public class MultiFieldQueryParser extends QueryParser {
 
   /** Creates a multifield query */
   // TODO: investigate more general approach by default, e.g. DisjunctionMaxQuery?
-  protected Query getMultiFieldQuery(List<Query> queries) throws ParseException {
+  protected Query getMultiFieldQuery(List<Query> queries) {
     if (queries.isEmpty()) {
       return null; // all clause words were filtered away by the analyzer.
     }
@@ -310,9 +304,7 @@ public class MultiFieldQueryParser extends QueryParser {
     for (int i = 0; i < fields.length; i++) {
       QueryParser qp = new QueryParser(fields[i], analyzer);
       Query q = qp.parse(queries[i]);
-      if (q != null
-          && // q never null, just being defensive
-          (!(q instanceof BooleanQuery) || ((BooleanQuery) q).clauses().size() > 0)) {
+      if (isValidClause(q)) {
         bQuery.add(q, BooleanClause.Occur.SHOULD);
       }
     }
@@ -360,9 +352,7 @@ public class MultiFieldQueryParser extends QueryParser {
     for (int i = 0; i < fields.length; i++) {
       QueryParser qp = new QueryParser(fields[i], analyzer);
       Query q = qp.parse(query);
-      if (q != null
-          && // q never null, just being defensive
-          (!(q instanceof BooleanQuery) || ((BooleanQuery) q).clauses().size() > 0)) {
+      if (isValidClause(q)) {
         bQuery.add(q, flags[i]);
       }
     }
@@ -411,12 +401,31 @@ public class MultiFieldQueryParser extends QueryParser {
     for (int i = 0; i < fields.length; i++) {
       QueryParser qp = new QueryParser(fields[i], analyzer);
       Query q = qp.parse(queries[i]);
-      if (q != null
-          && // q never null, just being defensive
-          (!(q instanceof BooleanQuery) || ((BooleanQuery) q).clauses().size() > 0)) {
+      if (isValidClause(q)) {
         bQuery.add(q, flags[i]);
       }
     }
     return bQuery.build();
+  }
+
+  /**
+   * Checks if a query is a valid clause to be added to a BooleanQuery.
+   *
+   * <p>A clause is considered invalid if it is null or an empty BooleanQuery, as these have no
+   * effect on the final query.
+   *
+   * @param q The query to validate.
+   * @return {@code true} if the query can be used as a clause, otherwise {@code false}.
+   */
+  private static boolean isValidClause(Query q) {
+    if (q == null) {
+      return false;
+    }
+    // If it's a BooleanQuery, it's only valid if it's not empty.
+    if (q instanceof BooleanQuery bq) {
+      return !bq.clauses().isEmpty();
+    }
+    // All other query types are considered valid clauses.
+    return true;
   }
 }
